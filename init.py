@@ -20,20 +20,18 @@ player_df_path, teams_df_path = p1, p2
 player_df = sql_context.read.load(p1, format="com.databricks.spark.csv", header=True, inferSchema=True)
 teams_df = sql_context.read.load(p2, format="com.databricks.spark.csv", header=True, inferSchema=True)
 
-
-def func(x):
-    #print(type(x))
-    stream_data = json.loads(x)
-    #print(type(stream_data))
-    #print("################# HERE FUNC BEGINNING #################")
-    getPassAccuracy(player_df, stream_data)
-    #print("############ HERE AFTER UTILS ####################")
-    return stream_data
+def calculate_metrics(rdd):
+    #Sample function prints match identifier and event ID for first 10 events
+    rdds = [json.loads(i) for i in rdd.collect()]
+    if rdds != []:
+        match = rdds[0]
+        print("MATCH ID:", match["wyId"])
+        events = rdds[1:]
+        for e in events[:10]:
+            print("EVENT ID:", e["eventId"])
 
 lines = ssc.socketTextStream("localhost", 6100)
-data = lines.map(lambda x: func(x))
-#getPassAccuracy(player_df, data)
-data.pprint()
+lines.foreachRDD(calculate_metrics)
 ssc.start()
 ssc.awaitTermination()
 ssc.stop()
