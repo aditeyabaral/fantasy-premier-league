@@ -6,6 +6,9 @@ import utils
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SQLContext
 from pyspark.streaming import StreamingContext
+from pyspark.sql.functions import *
+from pyspark.sql.types import IntegerType, FloatType, StringType
+
 
 #sc = spark.sparkContext
 sc = SparkContext(master=f"local[{os.cpu_count()-1}]", appName="fpl")
@@ -21,15 +24,21 @@ player_df = sql_context.read.load(p1, format="com.databricks.spark.csv", header=
 teams_df = sql_context.read.load(p2, format="com.databricks.spark.csv", header=True, inferSchema=True)
 
 def calculate_metrics(rdd):
-    #Sample function prints match identifier and event ID for first 10 events
     rdds = [json.loads(i) for i in rdd.collect()]
+    #global player_df
+    global count
     if rdds != []:
         match = rdds[0]
         print("MATCH ID:", match["wyId"])
         events = rdds[1:]
-        for e in events[:10]:
-            print("EVENT ID:", e["eventId"])
+        for cur_event in events:
+            playerId = cur_event["playerId"]
+            if cur_event["eventId"]==8:
+                count+=1
+        print(count)
+            
 
+ssc.checkpoint("home/hduser_/Desktop/fantasy-premier-league/checkpt")
 lines = ssc.socketTextStream("localhost", 6100)
 lines.foreachRDD(calculate_metrics)
 ssc.start()
