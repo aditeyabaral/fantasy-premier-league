@@ -1,0 +1,8 @@
+match ----map-----> playerId, (wasSubs (yes or no), inSubsTime, outSubTime)   #For all players in squads of both teams
+
+events ----map-----> playerId, (statistics, matchID)   #For each event 
+
+join on playerId gives
+
+playerId (wasSubs (yes or no), inSubsTime, outSubTime), (statistics, matchID)
+

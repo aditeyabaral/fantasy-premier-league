@@ -6,7 +6,7 @@ from pyspark.streaming import StreamingContext
 from pyspark.sql.functions import lit
 
 
-
+count = 0
 ####################################################################################################################
 ########################################### Spark Initialisation ###################################################
 ####################################################################################################################
@@ -16,7 +16,6 @@ conf.setAppName("FPL")
 sc = SparkContext(conf=conf)
 ssc = StreamingContext(sc, 5)
 ssc.checkpoint("checkpoint_FPL")
-
 
 
 ####################################################################################################################
@@ -220,41 +219,79 @@ def playerRatingUpdate(new, old):
 	'''
 	updates player rating after every match
 	'''
-	new = new[0]
-	pa = new[0]
-	de = new[1]
-	se = new[2]
-	fl = new[3]
-	og = new[4]
-	target = new[5]
-	if old is None:
-		old = 0.5
-	playerContrib = (pa + de + se + target) / 4
-
-	#Penalise
-	playerContrib = playerContrib - ((0.005*fl + 0.05*og)*playerContrib)
-	return (playerContrib + old) / 2
+	try:
+		new1 = new[0][0]
+		time_on_pitch = new[0][1][1] - new[0][1][0]
+		time_on_pitch = 90
+		pa = new1[0]
+		de = new1[1]
+		se = new1[2]
+		fl = new1[3]
+		og = new1[4]
+		target = new1[5]
+		if old is None:
+			old = 0.5
+		playerContrib = (pa + de + se + target) / 4
+		#Penalise
+		playerContrib = playerContrib - ((0.005*fl + 0.05*og)*playerContrib)
+		finalContrib = (playerContrib + old) / 2
+		if time_on_pitch == 90:
+			return 1.05*finalContrib
+		else:
+			return (time_on_pitch/90)*finalContrib
+	except:
+		return old
 
 def flush(new, old):
 	return None
 
 def playerProfileUpdate(new, old):
-	
-	if old is None:
-		fouls = new[3]
-		goals = new[-1]
-		own_goals = new[4]
-		pass_accu = new[0]
-		shots_on_target = new[5]
+	try:
+		if old is None:
+			fouls = new[0][3]
+			goals = new[0][-2]
+			own_goals = new[0][4]
+			pass_accu = new[0][0]
+			shots_on_target = new[0][5]
+		else:
+			fouls = new[0][3] + old[0][0]
+			goals = new[0][-2] + old[0][1]
+			own_goals = new[0][4] + old[0][2]
+			pass_accu = new[0][0] + old[0][3] #Should be changed
+			shots_on_target = new[0][5] + old[0][4]
 
-	else:
-		fouls = new[3] + old[0]
-		goals = new[-1] + old[1]
-		own_goals = new[4] + old[2]
-		pass_accu = new[0] + old[3] #Should be changed
-		shots_on_target = new[5] + old[4]
+		return (fouls,goals,own_goals, pass_accu, shots_on_target)
+	except IndexError:
+		return old
 
-	return (fouls,goals,own_goals, pass_accu, shots_on_target)
+def getPlayerListFromMatch(m):
+	m = json.loads(m)
+	players_subst_stats = []
+
+	for t in m["teamsData"]:
+		team_data = m["teamsData"][t]
+		sub_data = m["teamsData"][t]["formation"]["substitutions"]
+
+		inPlayers = [s["playerIn"] for s in sub_data]
+		outPlayers = [s["playerOut"] for s in sub_data]
+		subTime = [s["minute"] for s in sub_data]
+
+		bench_players = [p["playerId"] for p in team_data["formation"]["bench"]]
+		starting_xi = [p["playerId"] for p in team_data["formation"]["lineup"]]
+		for pId in starting_xi:
+			try:
+				idx = outPlayers.index(pId)
+				players_subst_stats.append((pId, (0, subTime[idx])))
+			except ValueError:
+				players_subst_stats.append((pId, (0, 90)))
+		for pId in bench_players:
+			try:
+				idx = inPlayers.index(pId)
+				players_subst_stats.append((pId, (subTime[idx], 90)))
+			except ValueError:
+				players_subst_stats.append((pId, (-1, -1)))
+	return players_subst_stats
+
 
 ####################################################################################################################
 ############################################## Driver Function #####################################################
@@ -267,6 +304,9 @@ dataStream = ssc.socketTextStream("localhost", 6100)
 match = dataStream.filter(isMatch)
 match.pprint()
 
+playerSubs = match.flatMap(lambda x: getPlayerListFromMatch(x))
+playerSubs.pprint()
+
 ### Events
 events = dataStream.filter(isEvent)
 events.pprint()
@@ -278,13 +318,16 @@ metricsVals.pprint()
 ### Metrics Counts
 metricsCounter = metricsVals.updateStateByKey(metricsCounterCalc)
 metricsCounter.pprint(30)
-'''
+
 ### Final Metrics
 finalMetrics = metricsCounter.updateStateByKey(finalMetricsCalc)
 finalMetrics.pprint()
 
+playerData = finalMetrics.join(playerSubs)
+playerData.pprint()
+
 ### Player Rating
-playerRating = finalMetrics.updateStateByKey(playerRatingUpdate)
+playerRating = playerData.updateStateByKey(playerRatingUpdate)
 playerRating.pprint()
 
 #Player profile
@@ -297,7 +340,7 @@ finalMetrics = finalMetrics.updateStateByKey(flush)
 ####################################################################################################################
 ############################################## Begin Streaming #####################################################
 ####################################################################################################################
-'''
+
 ssc.start()
 ssc.awaitTermination(100)
 ssc.stop()
