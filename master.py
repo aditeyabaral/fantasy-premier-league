@@ -4,7 +4,10 @@ import json
 from pyspark import SparkConf, SparkContext 
 from pyspark.streaming import StreamingContext
 from pyspark.sql.functions import lit
-
+from pyspark.sql import SQLContext, SparkSession
+import sys
+from shutil import rmtree
+import os
 
 count = 0
 ####################################################################################################################
@@ -14,6 +17,8 @@ count = 0
 conf = SparkConf()
 conf.setAppName("FPL")
 sc = SparkContext(conf=conf)
+sqlContext = SQLContext(sc)
+spark = SparkSession(sc)
 ssc = StreamingContext(sc, 5)
 ssc.checkpoint("checkpoint_FPL")
 
@@ -23,14 +28,21 @@ ssc.checkpoint("checkpoint_FPL")
 ####################################################################################################################
 
 # Reading players and teams csv files
-# players = sqlContext.read.load("file:///home/navaneeth/Desktop/Project/Source_Code/players.csv", format="csv", header="true", inferSchema="true")
-# teams = sqlContext.read.load("file:///home/navaneeth/Desktop/Project/Source_Code/teams.csv", format="csv", header="true", inferSchema="true")
-
+players_df = sqlContext.read.load("data/players.csv", format="csv", header="true", inferSchema="true")
+teams_df = sqlContext.read.load("data/teams.csv", format="csv", header="true", inferSchema="true")
 
 
 ####################################################################################################################
 ############################################ Required functions ####################################################
 ####################################################################################################################
+
+def getSparkSessionInstance(sparkConf):
+    if ('spark' not in globals()):
+        globals()['spark'] = SparkSession\
+            .builder\
+            .config(conf=sparkConf)\
+            .getOrCreate()
+    return globals()['spark']
 
 def isMatch(record):
 	'''
@@ -172,7 +184,7 @@ def metricsCounterCalc(new, old):
 		o += metrics[14]
 		p += metrics[15]
 		q += metrics[16]
-		m_id = metrics[17]
+		m_id = max(m_id, metrics[17])
 	if old is None:
 		return (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, m_id)
 	if old[-1] != m_id:
@@ -236,38 +248,34 @@ def playerRatingUpdate(new, old):
 		playerContrib = playerContrib - ((0.005*fl + 0.05*og)*playerContrib)
 		finalContrib = (playerContrib + old) / 2
 		if time_on_pitch == 90:
-			return 1.05*finalContrib
+			return (1.05*finalContrib, 1.05*finalContrib - old)
 		else:
-			return (time_on_pitch/90)*finalContrib
+			return ((time_on_pitch/90)*finalContrib, (time_on_pitch/90)*finalContrib - old)
 	except:
-		return old
+		return (old[0], 0)
 
 def flush(new, old):
 	return None
 
 def playerProfileUpdate(new, old):
-	try:
-		if old is None:
-			fouls = new[0][3]
-			goals = new[0][-2]
-			own_goals = new[0][4]
-			pass_accu = new[0][0]
-			shots_on_target = new[0][5]
-		else:
-			fouls = new[0][3] + old[0][0]
-			goals = new[0][-2] + old[0][1]
-			own_goals = new[0][4] + old[0][2]
-			pass_accu = new[0][0] + old[0][3] #Should be changed
-			shots_on_target = new[0][5] + old[0][4]
-
-		return (fouls,goals,own_goals, pass_accu, shots_on_target)
-	except IndexError:
-		return old
+	new = new[0]
+	if old is None:
+		fouls = new[3]
+		goals = new[-1]
+		own_goals = new[4]
+		pass_accu = new[0]
+		shots_on_target = new[5]
+	else:
+		fouls = new[3] + old[0]
+		goals = new[-1] + old[1]
+		own_goals = new[4] + old[2]
+		pass_accu = new[0] + old[3]
+		shots_on_target = new[5] + old[4]
+	return (fouls,goals,own_goals, pass_accu, shots_on_target)
 
 def getPlayerListFromMatch(m):
 	m = json.loads(m)
 	players_subst_stats = []
-
 	for t in m["teamsData"]:
 		team_data = m["teamsData"][t]
 		sub_data = m["teamsData"][t]["formation"]["substitutions"]
@@ -292,6 +300,78 @@ def getPlayerListFromMatch(m):
 				players_subst_stats.append((pId, (-1, -1)))
 	return players_subst_stats
 
+def getTeamIDforPlayer(m):
+	m = json.loads(m)
+	player_team_data = []
+	for t in m["teamsData"]:
+		team_data = m["teamsData"][t]
+		bench_players = [p["playerId"] for p in team_data["formation"]["bench"]]
+		starting_xi = [p["playerId"] for p in team_data["formation"]["lineup"]]
+		all_players = bench_players+starting_xi
+		for pId in all_players:
+			player_team_data.append((pId, int(t)))
+	return player_team_data
+'''
+def fullList(x):
+	x = x.collect()
+	chem_data = []
+	for i in range(len(x)):
+		for j in range(len(x)):
+			if x[i][0] == x[j][0]:
+				continue
+			elif:
+'''				
+
+
+def my_join(p1, p2):
+	# player1 = p1.collect()
+	# player2 = p2.collect()
+	# print(player1)
+	# if(player1[0]==player2[0]):
+	# 	return ((player1[0], player1[0]), 0)
+	# return ((player1[0], player2[0]), 0.5)
+	# P1 = p1.collect()
+	# P2 = p2.collect()
+	# p1_p2 = list()
+
+	# for i in P1:
+	# 	for j in P2:
+	# 		if i[0]==j[0]:
+	# 			print("SAME PLAYER DETECTED")
+	# 			p1_p2.append(((i[0], i[0]), 0))
+	# 		else:
+	# 			print("DIFFERENT PLAYERS DETECTED")
+	# 			# p1_p2.append(((i[0], j[0]), (i[1][1], j[1][1], 0.5)))
+
+	# print("SIZE OF P1 = ", len(P1))
+	p1_p2 = p1.cartesian(p2)
+	return p1_p2
+
+def my_map(x):
+	# x = rdd.collect()
+	return [[x[0][0], x[1][0]], [[0, x[0][1][-1]], [0, x[1][1][-1]], 0.5]]
+
+def ratingUpdate(pairPlayersUpdated, finalPlayerRating):
+	ppu = list(pairPlayersUpdated.collect())
+	fpr = list(finalPlayerRating.collect())
+
+	for i in range(len(fpr)):
+		fpr[i] = list(fpr[i])
+		for j in range(len(ppu)):
+			ppu[j] = list(ppu[j])
+			if fpr[i][0] == ppu[j][0][0]:
+				ppu[j][1][0][0] = fpr[i][1][0][1]
+			elif fpr[i][0] == ppu[j][0][1]:
+				ppu[j][1][1][0] = fpr[i][1][0][1]
+			ppu[j] = (ppu[j],)
+		fpr[i] = (fpr[i],)
+
+	return (ppu,)
+
+def save(rdd):
+	if os.path.exists("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data"):
+		rmtree("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data")
+	rdd.saveAsTextFile("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data")
 
 ####################################################################################################################
 ############################################## Driver Function #####################################################
@@ -306,6 +386,9 @@ match.pprint()
 
 playerSubs = match.flatMap(lambda x: getPlayerListFromMatch(x))
 playerSubs.pprint()
+
+playerTeam = match.flatMap(lambda x: getTeamIDforPlayer(x))
+playerTeam.pprint()
 
 ### Events
 events = dataStream.filter(isEvent)
@@ -323,24 +406,31 @@ metricsCounter.pprint(30)
 finalMetrics = metricsCounter.updateStateByKey(finalMetricsCalc)
 finalMetrics.pprint()
 
+playerStats = finalMetrics.join(playerTeam)
+playerStats.pprint()
+
+
+pairPlayers = playerStats.transformWith(my_join, playerStats)
+pairPlayers.pprint()
+
+
+pairPlayersUpdated = pairPlayers.map(my_map)
+pairPlayersUpdated.pprint()
+
+
 playerData = finalMetrics.join(playerSubs)
 playerData.pprint()
 
 ### Player Rating
 playerRating = playerData.updateStateByKey(playerRatingUpdate)
-playerRating.pprint()
+finalPlayerRating = playerRating.join(playerTeam)
+finalPlayerRating.saveAsTextFiles("rating-info")
 
-#Player profile
-playerProfile = finalMetrics.updateStateByKey(playerProfileUpdate)
-
-### Flushing Metrics Counts and Final Metrics after each match
-metricsCounter = metricsCounter.updateStateByKey(flush)
-finalMetrics = finalMetrics.updateStateByKey(flush)
-
+'''
 ####################################################################################################################
 ############################################## Begin Streaming #####################################################
 ####################################################################################################################
-
+'''
 ssc.start()
-ssc.awaitTermination(100)
+ssc.awaitTermination(100)	
 ssc.stop()

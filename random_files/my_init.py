@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import csv
-import utils
+#import utils
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SQLContext
 from pyspark.streaming import StreamingContext
@@ -15,8 +15,8 @@ sc = SparkContext(master="local[2]", appName="fpl")
 sql_context = SQLContext(sc)
 ssc = StreamingContext(sc, batchDuration=1)
 
-p1 = "data/players.csv"
-p2 = "data/teams.csv"
+p1 = "../data/players.csv"
+p2 = "../data/teams.csv"
 
 player_df_path, teams_df_path = p1, p2
 
@@ -93,20 +93,14 @@ def func(x):
             acc_pass = player_df.filter(player_df.Id == playerId).select('Accurate Passes').first()[0]
             non_acc_pass = player_df.filter(player_df.Id == playerId).select('Non Accurate Passes').first()[0]
             key_pass = player_df.filter(player_df.Id == playerId).select('Key Passes').first()[0]
-
             pass_acc = (acc_pass + (key_pass * 2))/(acc_pass + non_acc_pass + (key_pass * 2))
-
             player_df = player_df.withColumn('Pass Accuracy', when(player_df['Id'] == playerId, pass_acc).otherwise(player_df['Pass Accuracy']))
-
             print(playerId, pass_acc)
-
-    
-        
     return stream_data
 
 
 lines = ssc.socketTextStream("localhost", 6100)
-data = lines.map(lambda x: func(x))
+#data = lines.map(lambda x: func(x))
 #data = lines.map(lambda x: getPassAccuracy(x))
 #data = lines.foreachRDD(lambda x: func(x))
 #getPassAccuracy(player_df, data)

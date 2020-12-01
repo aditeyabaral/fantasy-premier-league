@@ -1,5 +1,8 @@
 stream
 log*.txt
+*.json
+playerlog
 __pycache__
 .vscode
 checkpoint_FPL
+player_profile_data
