@@ -1,8 +1,8 @@
-#import findspark
-#findspark.init()
-'''Importing the libraries'''
+'''
+Importing relevant libraries
+'''
 import json
-from pyspark import SparkConf, SparkContext 
+from pyspark import SparkConf, SparkContext
 from pyspark.streaming import StreamingContext
 from pyspark.sql.functions import lit
 from pyspark.sql import SQLContext, SparkSession
@@ -10,35 +10,30 @@ import sys
 from shutil import rmtree
 import os
 
-count = 0
-####################################################################################################################
-########################################### Spark Initialisation ###################################################
-####################################################################################################################
-
-conf = SparkConf()
+'''
+Spark Driver Settings
+'''
+conf = SparkConf()  # Initialize Spark Context configuration
 conf.setAppName("FPL")
-sc = SparkContext(conf=conf)
-sqlContext = SQLContext(sc)
-spark = SparkSession(sc)
-ssc = StreamingContext(sc, 5)
+sc = SparkContext(conf=conf)  # Create Spark context
+sqlContext = SQLContext(sc)  # Crate SQL context to access dataframe objects
+spark = SparkSession(sc)  # SparkSession creation
+ssc = StreamingContext(sc, 5)  # Start streaming context
+# Set checkpoint directory for all updateStateByKey operations
 ssc.checkpoint("checkpoint_FPL")
 
 
-####################################################################################################################
-###################################### Reading players.csv, teams.csv ##############################################
-####################################################################################################################
-
 # Reading players and teams csv files
-players_df = sqlContext.read.load("data/players.csv", format="csv", header="true", inferSchema="true")
-teams_df = sqlContext.read.load("data/teams.csv", format="csv", header="true", inferSchema="true")
-
-
-####################################################################################################################
-############################################ Required functions ####################################################
-####################################################################################################################
+players_df = sqlContext.read.load(
+    "data/players.csv", format="csv", header="true", inferSchema="true")
+teams_df = sqlContext.read.load(
+    "data/teams.csv", format="csv", header="true", inferSchema="true")
 
 
 def getSparkSessionInstance(sparkConf):
+	'''
+	Helper function to retrieve SparkSession instance at the worker nodes
+	'''
     if ('spark' not in globals()):
         globals()['spark'] = SparkSession\
             .builder\
@@ -48,46 +43,44 @@ def getSparkSessionInstance(sparkConf):
 
 def checkMatchRecord(record):
 	'''
-	checks if its a match record
+	Check if an input record is a match record
+	Return True if the input is a match record, else return False
 	'''
 	record = json.loads(record)
 	return 'wyId' in record.keys()
 
 def checkEventRecord(record):
 	'''
-	checks if its an event record
+	Check if an input record is a event record
+	Return True if the input is a event record, else return False
 	'''
 	record = json.loads(record)
 	return 'eventId' in record.keys() 
 
 def getMetrics(record):
 	'''
-	metric values
-	'''
+	Retrieve metric values for a single event record
 
+	Return Value Format:
+	Accurate normal passes,
+	Accurate key passes, 
+	Normal passes, 
+	Key passes,
+	Duels won, 
+	Neutral duels,
+	Total duels,
+	Shots,
+	Shots on target and goals,
+	Shots on target and not goals,
+	Shots on target,
+	Fouls,
+	Own goals,
+	Free kicks,
+	Effective free kicks.
+	Penalties scored,
+	Goals
+	'''
 	record = json.loads(record)
-
-	'''
-	TUPLE INFORMATION:
-	(acc normal pass) anp,
-	 (accurate key pass) akp, 
-	 (normal pass) np, 
-	 (key pass) kp
-	(duel won) dw, 
-	(neutral duel) nd,
-	 (total duel) td,
-	 shots,
-	 shots on target and goals,
-	 shots on target and not goals,
-	 shots on target
-	 fouls
-	 own goals
-	 free kicks
-	 effective free kicks
-	 penalties scored
-	 goals
-	'''
-
 	event_id = record["eventId"]
 	matchId = record["matchId"]
 	pid = record["playerId"]
@@ -95,15 +88,15 @@ def getMetrics(record):
 	own_goals = 0
 	goals = 0
 
-	#Check for goal
+	# Check for Goal
 	if 101 in tags:
 		goals = 1
 
-	#Check for own goal
+	# Check for Own Goal
 	if 102 in tags:
 		own_goals=1
 
-	# pass event
+	# Pass Event
 	if event_id == 8:
 		accurate_normal_passes = 0; accurate_key_passes = 0; normal_passes = 0; key_passes = 0;
 
@@ -117,7 +110,7 @@ def getMetrics(record):
 			accurate_normal_passes = 1
 		return (pid, (accurate_normal_passes, accurate_key_passes, normal_passes, key_passes, 0, 0, 0,0,0,0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
-	# duel event
+	# Duel Event
 	elif event_id == 1:
 		duels_won = 0; neutral_duels = 0; total_duels = 1;
 		if 703 in tags:
@@ -126,7 +119,7 @@ def getMetrics(record):
 			neutral_duels = 1
 		return (pid, (0, 0, 0, 0, duels_won, neutral_duels, total_duels,0,0,0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
-	#shot event
+	# Shot Event
 	elif event_id==10:
 		number_of_shots=1
 		on_target_and_goal=0
@@ -140,8 +133,7 @@ def getMetrics(record):
 			on_target_and_no_goal += 1
 		return (pid, (0, 0, 0, 0, 0, 0, 0, number_of_shots, on_target_and_goal, on_target_and_no_goal,on_target, 0, own_goals,0, 0, 0, goals, matchId))
 
-	#free kick 
-
+	# Free Kick 
 	elif event_id==3:
 		total_free_kicks = 1; effective_free_kicks = 0; penalty_goals = 0;
 		if 1801 in tags:
@@ -150,7 +142,7 @@ def getMetrics(record):
 			penalty_goals += 1;
 		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goals,total_free_kicks,effective_free_kicks,penalty_goals, goals, matchId))
 
-	#Foul loss
+	# Foul Loss
 	elif event_id==2:
 		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, own_goals,0, 0, 0, goals, matchId))
 
@@ -159,7 +151,8 @@ def getMetrics(record):
 
 def metricsCounterCalc(new, old):
 	'''
-	updates new state of metric counts
+	Aggregate outputs of getMetrics for each key (each playerId)
+	Outputs the sum of all parameters for a match for a player
 	'''
 	a, b, c, d, e, f, g,h,i,j,k,l,m,n,o,p,q = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 	m_id = -1
@@ -190,7 +183,8 @@ def metricsCounterCalc(new, old):
 
 def getFinalMetrics(new_state, old_state):
 	'''
-	calculates final metrics
+	Calculates the final metrics for each player for each match, 
+	Return the pass accuracy, duel effectiveness, shot effectiveness, number of free kicks, goals and fouls
 	'''
 	new_state = new_state[0]
 	try:
@@ -226,7 +220,7 @@ def getFinalMetrics(new_state, old_state):
 
 def updatePlayerRating(new_state, old_state):
 	'''
-	updates player rating after every match
+	Update the player rating given the parameters from the finalMetrics function
 	'''
 	try:
 		updated_state = new_state[0][0]
@@ -241,7 +235,7 @@ def updatePlayerRating(new_state, old_state):
 		if old_state is None:
 			old_state = 0.5
 		player_contribution = (pass_accuracy + duel_effectiveness + shot_effectiveness + shots_on_target) / 4
-		#Penalise
+		# Penalise
 		player_contribution = player_contribution - ((0.005*fouls + 0.05*own_goals)*player_contribution)
 		finalContrib = (player_contribution + old_state) / 2
 		if time_on_pitch == 90:
@@ -253,6 +247,9 @@ def updatePlayerRating(new_state, old_state):
 
 
 def getPlayerProfile(new_state, old_state):
+	'''
+	Update the player profile for each new match that is streamed in
+	'''
 	new_state = new_state[0]
 	if old_state is None:
 		fouls = new_state[3]
@@ -269,6 +266,12 @@ def getPlayerProfile(new_state, old_state):
 	return (fouls,goals,own_goals, pass_accuracy, shots_on_target)
 
 def getPlayerListFromMatch(m):
+	'''
+	Return the playerId and a tuple with the inTime and outTime at which that player was substituted
+	in or out
+
+	This will be used for player rating computation
+	'''
 	m = json.loads(m)
 	players_subst_stats = []
 	for t in m["teamsData"]:
@@ -296,6 +299,12 @@ def getPlayerListFromMatch(m):
 	return players_subst_stats
 
 def getTeamIDforPlayer(m):
+	'''
+	For each player in a team that is either on the bench or in the starting lineup, 
+	returns tuple of (playerId, teamId)
+
+	This is used for chemistry computation
+	'''
 	m = json.loads(m)
 	player_team_data = []
 	for t in m["teamsData"]:
@@ -309,6 +318,9 @@ def getTeamIDforPlayer(m):
 				
 
 def getJoinedPlayers(p1, p2):
+	'''
+	Cartesian product of player metrics objects to be used for chemistry computation
+	'''
 	p1_p2 = p1.cartesian(p2)
 	return p1_p2
 
@@ -319,6 +331,9 @@ def mapPlayers(x):
 
 
 def json_write(match):
+	'''
+	Save match records to persistent storage for servicing UI requests (type 3)
+	'''
 	m = json.loads(match)
 	m = json.dumps(m, indent = 4) 
 	with open('Match.json', 'a') as f:
@@ -326,74 +341,69 @@ def json_write(match):
 	return match
 
 def save(rdd):
+	'''
+	Save player profile data to persistent storage for servicing UI requests (type 2)
+	'''
 	if os.path.exists("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data"):
 		rmtree("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data")
 	rdd.saveAsTextFile("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data")
 
-####################################################################################################################
-############################################## Driver Function #####################################################
-####################################################################################################################
+dataStream = ssc.socketTextStream("localhost", 6100)            #Text input 
 
-dataStream = ssc.socketTextStream("localhost", 6100)
-
-
-### Match information
-match = dataStream.filter(checkMatchRecord)
+match = dataStream.filter(checkMatchRecord)						# Match Information
 match.pprint()
 
-new_match = match.map(lambda x: json_write(x))
+new_match = match.map(lambda x: json_write(x)) 					#Write each match record to persistent storage
 new_match.pprint()
 
-playerSubs = match.flatMap(lambda x: getPlayerListFromMatch(x))
-playerSubs.pprint()
+playerSubs = match.flatMap(lambda x: getPlayerListFromMatch(x)) #Get playerId, (intime, outtime) data
+playerSubs.pprint() 
 
-playerTeam = match.flatMap(lambda x: getTeamIDforPlayer(x))
+playerTeam = match.flatMap(lambda x: getTeamIDforPlayer(x))		#Get (playerId, teamId) information
 playerTeam.pprint()
 
-### Events
-events = dataStream.filter(checkEventRecord)
+# Events
+events = dataStream.filter(checkEventRecord)					#Filter event records
 events.pprint()
 
-### Metrics
-playerEventMetrics = events.map(getMetrics)
+# Metrics
+playerEventMetrics = events.map(getMetrics)						#Per event, per player, per match record
 playerEventMetrics.pprint()
 
-### Metrics Counts
-playerMetricsCounter = playerEventMetrics.updateStateByKey(metricsCounterCalc)
+# Metrics Counts
+playerMetricsCounter = playerEventMetrics.updateStateByKey(metricsCounterCalc) #Aggregate count of events per player per match
 playerMetricsCounter.pprint(30)
 
-### Final Metrics
-finalPlayerMetrics = playerMetricsCounter.updateStateByKey(getFinalMetrics)
+# Final Metrics
+finalPlayerMetrics = playerMetricsCounter.updateStateByKey(getFinalMetrics)    #Get metrics per player per match 
 finalPlayerMetrics.pprint()
 
-player_profile = finalPlayerMetrics.updateStateByKey(getPlayerProfile)
+player_profile = finalPlayerMetrics.updateStateByKey(getPlayerProfile)			#Save metrics in player profile and write to persistent storage
 player_profile.foreachRDD(save)
 
 
-playerStats = finalPlayerMetrics.join(playerTeam)
+playerStats = finalPlayerMetrics.join(playerTeam)								#Get metrics data and team data for each player (used for chemistry)
 playerStats.pprint()
 
 
-pairPlayers = playerStats.transformWith(getJoinedPlayers, playerStats)
+pairPlayers = playerStats.transformWith(getJoinedPlayers, playerStats)			
 pairPlayers.pprint()
 
 
-pairPlayersUpdated = pairPlayers.map(mapPlayers)
+pairPlayersUpdated = pairPlayers.map(mapPlayers)				#Initialize chemistry of all players
 pairPlayersUpdated.pprint()
 
 
-playerData = finalPlayerMetrics.join(playerSubs)
+playerData = finalPlayerMetrics.join(playerSubs)				#Player Metric data and substitution data for computing the rating
 playerData.pprint()
 
-### Player Rating
-player_rating = playerData.updateStateByKey(updatePlayerRating)
-finalPlayerRating = player_rating.join(playerTeam)
-finalPlayerRating.saveAsTextFiles("rating-info")
+# Player Rating
+player_rating = playerData.updateStateByKey(updatePlayerRating) #Player Rating computation
+finalPlayerRating = player_rating.join(playerTeam)				#Plaer rating and team information used for chemistry
+finalPlayerRating.saveAsTextFiles("rating-info")				#Save rating information for chemistry computation
 
 '''
-####################################################################################################################
-############################################## Begin Streaming #####################################################
-####################################################################################################################
+Start streaming job
 '''
 ssc.start()
 ssc.awaitTermination(100)	
