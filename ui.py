@@ -75,7 +75,7 @@ elif r_type==2:
 
 	tt = None
 	found = False
-	files = [f for f in os.listdir("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data") if f.startswith("part-")]
+	files = [f for f in os.listdir("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data") if f.startswith("part-")]
 	for file in files:
 		text = open("player_profile_data/"+file).read()
 		items = [eval(x) for x in text.split("\n") if x != '']

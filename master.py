@@ -34,12 +34,12 @@ def getSparkSessionInstance(sparkConf):
 	'''
 	Helper function to retrieve SparkSession instance at the worker nodes
 	'''
-    if ('spark' not in globals()):
-        globals()['spark'] = SparkSession\
-            .builder\
-            .config(conf=sparkConf)\
-            .getOrCreate()
-    return globals()['spark']
+	if ('spark' not in globals()):
+		globals()['spark'] = SparkSession\
+			.builder\
+			.config(conf=sparkConf)\
+			.getOrCreate()
+	return globals()['spark']
 
 def checkMatchRecord(record):
 	'''
@@ -261,7 +261,7 @@ def getPlayerProfile(new_state, old_state):
 		fouls = new_state[3] + old_state[0]
 		goals = new_state[-1] + old_state[1]
 		own_goals = new_state[4] + old_state[2]
-		pass_accuracy = new_state[0] + old_state[3]
+		pass_accuracy = (new_state[0] + old_state[3])/2
 		shots_on_target = new_state[5] + old_state[4]
 	return (fouls,goals,own_goals, pass_accuracy, shots_on_target)
 
