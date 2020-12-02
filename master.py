@@ -1,5 +1,6 @@
 #import findspark
 #findspark.init()
+'''Importing the libraries'''
 import json
 from pyspark import SparkConf, SparkContext 
 from pyspark.streaming import StreamingContext
@@ -36,6 +37,7 @@ teams_df = sqlContext.read.load("data/teams.csv", format="csv", header="true", i
 ############################################ Required functions ####################################################
 ####################################################################################################################
 
+
 def getSparkSessionInstance(sparkConf):
     if ('spark' not in globals()):
         globals()['spark'] = SparkSession\
@@ -44,34 +46,26 @@ def getSparkSessionInstance(sparkConf):
             .getOrCreate()
     return globals()['spark']
 
-def isMatch(record):
+def checkMatchRecord(record):
 	'''
 	checks if its a match record
 	'''
-	recordJson = json.loads(record)
-	try:
-		mId = recordJson["wyId"]
-		return True
-	except:
-		return False
+	record = json.loads(record)
+	return 'wyId' in record.keys()
 
-def isEvent(record):
+def checkEventRecord(record):
 	'''
 	checks if its an event record
 	'''
-	recordJson = json.loads(record)
-	try:
-		eId = recordJson["eventId"]
-		return True
-	except:
-		return False
+	record = json.loads(record)
+	return 'eventId' in record.keys() 
 
-def metricsValsCalc(record):
+def getMetrics(record):
 	'''
 	metric values
 	'''
 
-	recordJson = json.loads(record)
+	record = json.loads(record)
 
 	'''
 	TUPLE INFORMATION:
@@ -94,11 +88,11 @@ def metricsValsCalc(record):
 	 goals
 	'''
 
-	eventid = recordJson["eventId"]
-	matchId = recordJson["matchId"]
-	pid = recordJson["playerId"]
-	tags = [d["id"] for d in recordJson["tags"]]
-	own_goal = 0
+	event_id = record["eventId"]
+	matchId = record["matchId"]
+	pid = record["playerId"]
+	tags = [i["id"] for i in record["tags"]]
+	own_goals = 0
 	goals = 0
 
 	#Check for goal
@@ -107,58 +101,61 @@ def metricsValsCalc(record):
 
 	#Check for own goal
 	if 102 in tags:
-		own_goal=1
+		own_goals=1
 
 	# pass event
-	if eventid == 8:
-		anp = 0; akp = 0; np = 0; kp = 0;
+	if event_id == 8:
+		accurate_normal_passes = 0; accurate_key_passes = 0; normal_passes = 0; key_passes = 0;
 
 		if 302 in tags:
-			kp = 1
+			key_passes = 1
 		else:
-			np = 1
+			normal_passes = 1
 		if 1801 in tags and 302 in tags:
-			akp = 1
+			accurate_key_passes = 1
 		elif 1801 in tags:
-			anp = 1
-		return (pid, (anp, akp, np, kp, 0, 0, 0,0,0,0, 0, 0, own_goal,0, 0, 0, goals, matchId))
+			accurate_normal_passes = 1
+		return (pid, (accurate_normal_passes, accurate_key_passes, normal_passes, key_passes, 0, 0, 0,0,0,0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
 	# duel event
-	elif eventid == 1:
-		dw = 0; nd = 0; td = 1;
+	elif event_id == 1:
+		duels_won = 0; neutral_duels = 0; total_duels = 1;
 		if 703 in tags:
-			dw = 1
+			duels_won = 1
 		if 702 in tags:
-			nd = 1
-		return (pid, (0, 0, 0, 0, dw, nd, td,0,0,0, 0, 0, own_goal,0, 0, 0, goals, matchId))
+			neutral_duels = 1
+		return (pid, (0, 0, 0, 0, duels_won, neutral_duels, total_duels,0,0,0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
 	#shot event
-	elif eventid==10:
-		shots=1;on_target_goal=0;on_target_notgoal=0;on_target=0;
+	elif event_id==10:
+		number_of_shots=1
+		on_target_and_goal=0
+		on_target_and_no_goal=0
+		on_target=0
 		if 1801 in tags:
-			on_target += 1;
+			on_target += 1
 		if 1801 in tags and 101 in tags:
-			on_target_goal += 1
+			on_target_and_goal += 1
 		if 1801 in tags and 101 not in tags:
-			on_target_notgoal += 1
-		return (pid, (0, 0, 0, 0, 0, 0, 0, shots, on_target_goal, on_target_notgoal,on_target, 0, own_goal,0, 0, 0, goals, matchId))
+			on_target_and_no_goal += 1
+		return (pid, (0, 0, 0, 0, 0, 0, 0, number_of_shots, on_target_and_goal, on_target_and_no_goal,on_target, 0, own_goals,0, 0, 0, goals, matchId))
 
 	#free kick 
 
-	elif eventid==3:
-		fk = 1; eff = 0; penal_goals = 0;
+	elif event_id==3:
+		total_free_kicks = 1; effective_free_kicks = 0; penalty_goals = 0;
 		if 1801 in tags:
-			eff += 1
-		if recordJson["subEventId"]==35 and 101 in tags:
-			penal_goals += 1;
-		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goal,fk,eff,penal_goals, goals, matchId))
+			effective_free_kicks += 1
+		if record["subEventId"]==35 and 101 in tags:
+			penalty_goals += 1;
+		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goals,total_free_kicks,effective_free_kicks,penalty_goals, goals, matchId))
 
 	#Foul loss
-	elif eventid==2:
-		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, own_goal,0, 0, 0, goals, matchId))
+	elif event_id==2:
+		return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, own_goals,0, 0, 0, goals, matchId))
 
 	# For now, return all zeros (because its neither pass nor duel event)
-	return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goal,0, 0, 0, goals, matchId))
+	return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
 def metricsCounterCalc(new, old):
 	'''
@@ -191,87 +188,85 @@ def metricsCounterCalc(new, old):
 		return (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, m_id)
 	return (a + old[0], b + old[1], c + old[2], d + old[3], e + old[4], f + old[5], g + old[6], h + old[7], i + old[8], j + old[9], k + old[10], l + old[11], m + old[12], n + old[13], o + old[14], p + old[15], q + old[16], old[-1])
 
-def finalMetricsCalc(new, old):
+def getFinalMetrics(new_state, old_state):
 	'''
 	calculates final metrics
 	'''
-	new = new[0]
+	new_state = new_state[0]
 	try:
-		pa = (new[0] + new[1] * 2) / (new[2] + new[3] * 2)
+		pass_accuracy = (new_state[0] + new_state[1] * 2) / (new_state[2] + new_state[3] * 2)
 	except:
-		pa = 0
+		pass_accuracy = 0
 	try:
-		de = (new[4] + new[5] * 0.5) / (new[6])
+		duel_effectiveness = (new_state[4] + new_state[5] * 0.5) / (new_state[6])
 	except:
-		de = 0
+		duel_effectiveness = 0
 	try:
-		se = (new[8] + (new[9]*0.5))/new[7]
+		shot_effectiveness = (new_state[8] + (new_state[9]*0.5))/new_state[7]
 	except:
-		se = 0
+		shot_effectiveness = 0
 
 	try:
-		target = new[10]
+		shots_on_target = new_state[10]
 	except:
-		target = 0
+		shots_on_target = 0
 
 	try:
-		fl,og,g=new[11],new[12],new[16]
+		fouls, own_goals, goals=new_state[11],new_state[12],new_state[16]
 	except:
-		fl,og,g = 0,0,0
+		fouls,own_goals, goals = 0,0,0
 
 	try:
-		fk_eff = (new[14]+new[15])/new[13]
+		free_kick_effectiveness = (new_state[14]+new_state[15])/new_state[13]
 	except:
-		fk_eff = 0
+		free_kick_effectiveness = 0
 
 
-	return (pa, de, se, fl, og, target, fk_eff, g)
+	return (pass_accuracy, duel_effectiveness, shot_effectiveness, fouls, own_goals, shots_on_target, free_kick_effectiveness, goals)
 
-def playerRatingUpdate(new, old):
+def updatePlayerRating(new_state, old_state):
 	'''
 	updates player rating after every match
 	'''
 	try:
-		new1 = new[0][0]
-		time_on_pitch = new[0][1][1] - new[0][1][0]
+		updated_state = new_state[0][0]
+		time_on_pitch = new_state[0][1][1] - new_state[0][1][0]
 		time_on_pitch = 90
-		pa = new1[0]
-		de = new1[1]
-		se = new1[2]
-		fl = new1[3]
-		og = new1[4]
-		target = new1[5]
-		if old is None:
-			old = 0.5
-		playerContrib = (pa + de + se + target) / 4
+		pass_accuracy = updated_state[0]
+		duel_effectiveness = updated_state[1]
+		shot_effectiveness = updated_state[2]
+		fouls = updated_state[3]
+		own_goals = updated_state[4]
+		shots_on_target = updated_state[5]
+		if old_state is None:
+			old_state = 0.5
+		player_contribution = (pass_accuracy + duel_effectiveness + shot_effectiveness + shots_on_target) / 4
 		#Penalise
-		playerContrib = playerContrib - ((0.005*fl + 0.05*og)*playerContrib)
-		finalContrib = (playerContrib + old) / 2
+		player_contribution = player_contribution - ((0.005*fouls + 0.05*own_goals)*player_contribution)
+		finalContrib = (player_contribution + old_state) / 2
 		if time_on_pitch == 90:
-			return (1.05*finalContrib, 1.05*finalContrib - old)
+			return (1.05*finalContrib, 1.05*finalContrib - old_state)
 		else:
-			return ((time_on_pitch/90)*finalContrib, (time_on_pitch/90)*finalContrib - old)
+			return ((time_on_pitch/90)*finalContrib, (time_on_pitch/90)*finalContrib - old_state)
 	except:
-		return (old[0], 0)
+		return (old_state[0], 0)
 
-def flush(new, old):
-	return None
 
-def playerProfileUpdate(new, old):
-	new = new[0]
-	if old is None:
-		fouls = new[3]
-		goals = new[-1]
-		own_goals = new[4]
-		pass_accu = new[0]
-		shots_on_target = new[5]
+def getPlayerProfile(new_state, old_state):
+	new_state = new_state[0]
+	if old_state is None:
+		fouls = new_state[3]
+		goals = new_state[-1]
+		own_goals = new_state[4]
+		pass_accuracy = new_state[0]
+		shots_on_target = new_state[5]
 	else:
-		fouls = new[3] + old[0]
-		goals = new[-1] + old[1]
-		own_goals = new[4] + old[2]
-		pass_accu = new[0] + old[3]
-		shots_on_target = new[5] + old[4]
-	return (fouls,goals,own_goals, pass_accu, shots_on_target)
+		fouls = new_state[3] + old_state[0]
+		goals = new_state[-1] + old_state[1]
+		own_goals = new_state[4] + old_state[2]
+		pass_accuracy = new_state[0] + old_state[3]
+		shots_on_target = new_state[5] + old_state[4]
+	return (fouls,goals,own_goals, pass_accuracy, shots_on_target)
 
 def getPlayerListFromMatch(m):
 	m = json.loads(m)
@@ -311,67 +306,29 @@ def getTeamIDforPlayer(m):
 		for pId in all_players:
 			player_team_data.append((pId, int(t)))
 	return player_team_data
-'''
-def fullList(x):
-	x = x.collect()
-	chem_data = []
-	for i in range(len(x)):
-		for j in range(len(x)):
-			if x[i][0] == x[j][0]:
-				continue
-			elif:
-'''				
+				
 
-
-def my_join(p1, p2):
-	# player1 = p1.collect()
-	# player2 = p2.collect()
-	# print(player1)
-	# if(player1[0]==player2[0]):
-	# 	return ((player1[0], player1[0]), 0)
-	# return ((player1[0], player2[0]), 0.5)
-	# P1 = p1.collect()
-	# P2 = p2.collect()
-	# p1_p2 = list()
-
-	# for i in P1:
-	# 	for j in P2:
-	# 		if i[0]==j[0]:
-	# 			print("SAME PLAYER DETECTED")
-	# 			p1_p2.append(((i[0], i[0]), 0))
-	# 		else:
-	# 			print("DIFFERENT PLAYERS DETECTED")
-	# 			# p1_p2.append(((i[0], j[0]), (i[1][1], j[1][1], 0.5)))
-
-	# print("SIZE OF P1 = ", len(P1))
+def getJoinedPlayers(p1, p2):
 	p1_p2 = p1.cartesian(p2)
 	return p1_p2
 
-def my_map(x):
+def mapPlayers(x):
 	# x = rdd.collect()
 	return [[x[0][0], x[1][0]], [[0, x[0][1][-1]], [0, x[1][1][-1]], 0.5]]
 
-def ratingUpdate(pairPlayersUpdated, finalPlayerRating):
-	ppu = list(pairPlayersUpdated.collect())
-	fpr = list(finalPlayerRating.collect())
 
-	for i in range(len(fpr)):
-		fpr[i] = list(fpr[i])
-		for j in range(len(ppu)):
-			ppu[j] = list(ppu[j])
-			if fpr[i][0] == ppu[j][0][0]:
-				ppu[j][1][0][0] = fpr[i][1][0][1]
-			elif fpr[i][0] == ppu[j][0][1]:
-				ppu[j][1][1][0] = fpr[i][1][0][1]
-			ppu[j] = (ppu[j],)
-		fpr[i] = (fpr[i],)
 
-	return (ppu,)
+def json_write(match):
+	m = json.loads(match)
+	m = json.dumps(m, indent = 4) 
+	with open('Match.json', 'a') as f:
+		f.write(m)
+	return match
 
 def save(rdd):
-	if os.path.exists("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data"):
-		rmtree("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data")
-	rdd.saveAsTextFile("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data")
+	if os.path.exists("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data"):
+		rmtree("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data")
+	rdd.saveAsTextFile("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data")
 
 ####################################################################################################################
 ############################################## Driver Function #####################################################
@@ -381,8 +338,11 @@ dataStream = ssc.socketTextStream("localhost", 6100)
 
 
 ### Match information
-match = dataStream.filter(isMatch)
+match = dataStream.filter(checkMatchRecord)
 match.pprint()
+
+new_match = match.map(lambda x: json_write(x))
+new_match.pprint()
 
 playerSubs = match.flatMap(lambda x: getPlayerListFromMatch(x))
 playerSubs.pprint()
@@ -391,39 +351,43 @@ playerTeam = match.flatMap(lambda x: getTeamIDforPlayer(x))
 playerTeam.pprint()
 
 ### Events
-events = dataStream.filter(isEvent)
+events = dataStream.filter(checkEventRecord)
 events.pprint()
 
 ### Metrics
-metricsVals = events.map(metricsValsCalc)
-metricsVals.pprint()
+playerEventMetrics = events.map(getMetrics)
+playerEventMetrics.pprint()
 
 ### Metrics Counts
-metricsCounter = metricsVals.updateStateByKey(metricsCounterCalc)
-metricsCounter.pprint(30)
+playerMetricsCounter = playerEventMetrics.updateStateByKey(metricsCounterCalc)
+playerMetricsCounter.pprint(30)
 
 ### Final Metrics
-finalMetrics = metricsCounter.updateStateByKey(finalMetricsCalc)
-finalMetrics.pprint()
+finalPlayerMetrics = playerMetricsCounter.updateStateByKey(getFinalMetrics)
+finalPlayerMetrics.pprint()
 
-playerStats = finalMetrics.join(playerTeam)
+player_profile = finalPlayerMetrics.updateStateByKey(getPlayerProfile)
+player_profile.foreachRDD(save)
+
+
+playerStats = finalPlayerMetrics.join(playerTeam)
 playerStats.pprint()
 
 
-pairPlayers = playerStats.transformWith(my_join, playerStats)
+pairPlayers = playerStats.transformWith(getJoinedPlayers, playerStats)
 pairPlayers.pprint()
 
 
-pairPlayersUpdated = pairPlayers.map(my_map)
+pairPlayersUpdated = pairPlayers.map(mapPlayers)
 pairPlayersUpdated.pprint()
 
 
-playerData = finalMetrics.join(playerSubs)
+playerData = finalPlayerMetrics.join(playerSubs)
 playerData.pprint()
 
 ### Player Rating
-playerRating = playerData.updateStateByKey(playerRatingUpdate)
-finalPlayerRating = playerRating.join(playerTeam)
+player_rating = playerData.updateStateByKey(updatePlayerRating)
+finalPlayerRating = player_rating.join(playerTeam)
 finalPlayerRating.saveAsTextFiles("rating-info")
 
 '''

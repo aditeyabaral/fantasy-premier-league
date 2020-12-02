@@ -1,7 +1,7 @@
 import os
 import json
 
-metrics_dirs = sorted([d for d in os.listdir(".") if d.startswith("rating-info-")])
+metrics_dirs = sorted(["./data/"+d for d in os.listdir("./data") if d.startswith("rating-info-")])
 
 players = open("data/players.csv").read().split("\n")
 playerIds = list(map(lambda x: x.split(",")[-1], players))

@@ -19,7 +19,10 @@ teams_df = sqlContext.read.load("data/teams.csv", format="csv", header="true", i
 
 text = open(sys.argv[1]).read()
 inp = json.loads(text)
-r_type = inp["req_type"]
+if 'req_type' in inp.keys():
+	r_type = inp["req_type"]
+else:
+	r_type = 3
 
 if r_type==1:
 	team_strength = [0, 0]
@@ -72,7 +75,7 @@ elif r_type==2:
 
 	tt = None
 	found = False
-	files = [f for f in os.listdir("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data") if f.startswith("part-")]
+	files = [f for f in os.listdir("/home/hadoop/Desktop/fantasy-premier-league/player_profile_data") if f.startswith("part-")]
 	for file in files:
 		text = open("player_profile_data/"+file).read()
 		items = [eval(x) for x in text.split("\n") if x != '']
@@ -92,4 +95,88 @@ elif r_type==2:
 
 	j = json.dumps(data)
 	f = open("player-result.json", "w").write(j)
+
+elif r_type==3:
+	date = inp['date']
+	label = inp['label']
+
+	with open('Match.json', 'r') as f:
+		# matches = json.loads(f.read())
+		text = f.read()
+		text = '['+text[:-1]+']'
+		matches = json.loads(text)
+
+	final_match = dict()
+
+	for match in matches:
+		if (date==match['dateutc'].split()[0]) and (label==match['label']):
+			final_match['date'] = date
+			final_match['duration'] = match['duration']
+			winner = match['winner']
+			team_name = teams_df.filter(teams_df.Id == winner).first()['name']
+			final_match['winner'] = team_name
+			final_match['venue'] = match['venue']
+			final_match['gameweek'] = match['gameweek']
+
+			final_match['goals'] = list()
+			final_match['own_goals'] = list()
+			final_match['yellow_cards'] = list()
+			final_match['red_cards'] = list()
+
+			for team in match['teamsData']:
+				team_id = team
+				team_name = teams_df.filter(teams_df.Id==team).first()['name']
+				print(team)
+				for player in match['teamsData'][team]['formation']['bench']:
+					goals_dict = dict()
+					own_goals_dict = dict()
+			
+					playerId = player['playerId']
+					name = players_df.filter(players_df.Id==playerId).first()['name']
+
+					goals_dict['name'] = name
+					own_goals_dict['name'] = name
+
+					goals_dict['team'] = team_name
+					own_goals_dict['team'] = team_name
+					
+					goals_dict['number_of_goals'] = player['goals']
+					own_goals_dict['number_of_goals'] = player['ownGoals']
+
+					final_match['goals'].append(goals_dict)
+					final_match['own_goals'].append(own_goals_dict)
+					final_match['yellow_cards'].append(name)
+					final_match['red_cards'].append(name)
+
+				for player in match['teamsData'][team]['formation']['lineup']:
+					goals_dict = dict()
+					own_goals_dict = dict()
+			
+					playerId = player['playerId']
+					name = players_df.filter(players_df.Id==playerId).first()['name']
+
+					goals_dict['name'] = name
+					own_goals_dict['name'] = name
+
+					goals_dict['team'] = team_name
+					own_goals_dict['team'] = team_name
+					
+					goals_dict['number_of_goals'] = player['goals']
+					own_goals_dict['number_of_goals'] = player['ownGoals']
+
+					final_match['goals'].append(goals_dict)
+					final_match['own_goals'].append(own_goals_dict)
+					final_match['yellow_cards'].append(name)
+					final_match['red_cards'].append(name)
+			break
+
+	j = json.dumps(final_match)
+	f = open('match_details.json', 'w').write(j)
+		
+
+
+			
+
+
+
 
