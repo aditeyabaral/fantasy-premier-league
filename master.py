@@ -150,36 +150,41 @@ def getMetrics(record):
 	return (pid, (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, own_goals,0, 0, 0, goals, matchId))
 
 def metricsCounterCalc(new, old):
-	'''
-	Aggregate outputs of getMetrics for each key (each playerId)
-	Outputs the sum of all parameters for a match for a player
-	'''
-	a, b, c, d, e, f, g,h,i,j,k,l,m,n,o,p,q = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-	m_id = -1
-	for metrics in new:
-		a += metrics[0]
-		b += metrics[1]
-		c += metrics[2]
-		d += metrics[3]
-		e += metrics[4]
-		f += metrics[5]
-		g += metrics[6]
-		h += metrics[7]
-		i += metrics[8]
-		j += metrics[9]
-		k += metrics[10]
-		l += metrics[11]
-		m += metrics[12]
-		n += metrics[13]
-		o += metrics[14]
-		p += metrics[15]
-		q += metrics[16]
-		m_id = max(m_id, metrics[17])
-	if old is None:
-		return (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, m_id)
-	if old[-1] != m_id:
-		return (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, m_id)
-	return (a + old[0], b + old[1], c + old[2], d + old[3], e + old[4], f + old[5], g + old[6], h + old[7], i + old[8], j + old[9], k + old[10], l + old[11], m + old[12], n + old[13], o + old[14], p + old[15], q + old[16], old[-1])
+    '''
+    Aggregate outputs of getMetrics for each key (each playerId)
+    Outputs the sum of all parameters for a match for a player
+    '''
+    anp_ctr, akp_ctr, np_ctr, kp_ctr, dw_ctr, nd_ctr, td_ctr, sh_ctr, stg_ctr, stng_ctr,\
+		 st_ctr, fl_ctr, og_ctr, fk_ctr, efk_ctr, pen_ctr, gl_ctr = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    m_id = -1
+    for metrics in new:
+        anp_ctr += metrics[0]
+        akp_ctr += metrics[1]
+        np_ctr += metrics[2]
+        kp_ctr += metrics[3]
+        dw_ctr += metrics[4]
+        nd_ctr += metrics[5]
+        td_ctr += metrics[6]
+        sh_ctr += metrics[7]
+        stg_ctr += metrics[8]
+        stng_ctr += metrics[9]
+        st_ctr += metrics[10]
+        fl_ctr += metrics[11]
+        og_ctr += metrics[12]
+        fk_ctr += metrics[13]
+        efk_ctr += metrics[14]
+        pen_ctr += metrics[15]
+        gl_ctr += metrics[16]
+        m_id = max(m_id, metrics[17])
+    if old is None:
+        return (anp_ctr, akp_ctr, np_ctr, kp_ctr, dw_ctr, nd_ctr, td_ctr, sh_ctr, stg_ctr, stng_ctr, st_ctr, \
+			 fl_ctr, og_ctr, fk_ctr, efk_ctr, pen_ctr, gl_ctr, m_id)
+    if old[-1] != m_id:
+        return (anp_ctr, akp_ctr, np_ctr, kp_ctr, dw_ctr, nd_ctr, td_ctr, sh_ctr, stg_ctr, stng_ctr, st_ctr, \
+			 fl_ctr, og_ctr, fk_ctr, efk_ctr, pen_ctr, gl_ctr, m_id)
+    return (anp_ctr + old[0], akp_ctr + old[1], np_ctr + old[2], kp_ctr + old[3], dw_ctr + old[4], nd_ctr + old[5], td_ctr + old[6], \
+		  	 sh_ctr + old[7], stg_ctr + old[8], stng_ctr + old[9], st_ctr + old[10], fl_ctr + old[11], og_ctr + old[12], \
+				   fk_ctr + old[13], efk_ctr + old[14], pen_ctr + old[15], gl_ctr + old[16], old[-1])
 
 def getFinalMetrics(new_state, old_state):
 	'''
