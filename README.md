@@ -1,6 +1,6 @@
 # fantasy-premier-league
 
-A project that involves collecting streaming data about English Premier League matches over a TCP socket, and performing analytics on it. </br>
+A project that involves collecting streaming data about English Premier League matches over a TCP socket, and performing real-time analytics on it.
 Project was implemented in PySpark, tested on version 3.0.1
 
 To run the project, use the inbuilt runner script with the input JSON file as its command line argument, as follows
