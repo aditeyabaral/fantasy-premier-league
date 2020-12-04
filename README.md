@@ -17,4 +17,6 @@ There are three possible kinds of inputs:
 2. Input requesting for a particular match details
 3. Input requesting for winning chances in Fantasy Premier League given two playing XIs.
 
-The input formats for each can be found in the ```sample_ip``` directory. 
+The input formats for each can be found at the link below:
+
+[Sample Input](https://drive.google.com/drive/folders/1Ic8W5Ii8cyN9AKysjcg69c4ZpkWAmfAQ)
