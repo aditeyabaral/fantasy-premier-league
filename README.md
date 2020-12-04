@@ -3,6 +3,8 @@
 A project that involves collecting streaming data about English Premier League matches over a TCP socket, and performing real-time analytics on it.
 Project was implemented in PySpark, tested on version 3.0.1
 
+This project was submitted as part of the course requirements of the Big Data course (UE18CS322) at PES University, Bengaluru
+
 To run the project, use the inbuilt runner script with the input JSON file as its command line argument, as follows
 
 ```
