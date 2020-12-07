@@ -4,6 +4,6 @@ log*.txt
 playerlog
 __pycache__
 .vscode
-checkpoint_FPL
+CheckPoint
 player_profile_data
 rating-info-*/

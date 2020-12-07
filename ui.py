@@ -113,7 +113,10 @@ elif r_type==3:
 			final_match['date'] = date
 			final_match['duration'] = match['duration']
 			winner = match['winner']
-			team_name = teams_df.filter(teams_df.Id == winner).first()['name']
+			if winner==0:
+				team_name = 'draw'
+			else:
+				team_name = teams_df.filter(teams_df.Id == winner).first()['name']
 			final_match['winner'] = team_name
 			final_match['venue'] = match['venue']
 			final_match['gameweek'] = match['gameweek']
@@ -125,7 +128,8 @@ elif r_type==3:
 
 			for team in match['teamsData']:
 				team_id = team
-				team_name = teams_df.filter(teams_df.Id==team).first()['name']
+				print("TEAM ID:", team_id)
+				team_name = teams_df.filter(teams_df.Id==team).first().name
 				print(team)
 				for player in match['teamsData'][team]['formation']['bench']:
 					goals_dict = dict()

@@ -320,20 +320,6 @@ def getTeamIDforPlayer(m):
 		for pId in all_players:
 			player_team_data.append((pId, int(t)))
 	return player_team_data
-				
-
-def getJoinedPlayers(p1, p2):
-	'''
-	Cartesian product of player metrics objects to be used for chemistry computation
-	'''
-	p1_p2 = p1.cartesian(p2)
-	return p1_p2
-
-def mapPlayers(x):
-	# x = rdd.collect()
-	return [[x[0][0], x[1][0]], [[0, x[0][1][-1]], [0, x[1][1][-1]], 0.5]]
-
-
 
 def json_write(match):
 	'''
@@ -389,15 +375,6 @@ player_profile.foreachRDD(save)
 
 playerStats = finalPlayerMetrics.join(playerTeam)								#Get metrics data and team data for each player (used for chemistry)
 playerStats.pprint()
-
-
-pairPlayers = playerStats.transformWith(getJoinedPlayers, playerStats)			
-pairPlayers.pprint()
-
-
-pairPlayersUpdated = pairPlayers.map(mapPlayers)				#Initialize chemistry of all players
-pairPlayersUpdated.pprint()
-
 
 playerData = finalPlayerMetrics.join(playerSubs)				#Player Metric data and substitution data for computing the rating
 playerData.pprint()
