@@ -171,7 +171,10 @@ elif r_type==3:
 			break
 
 	j = json.dumps(final_match)
-	f = open('match_details.json', 'w').write(j)
+	if final_match == {}:
+		f = open("match_details.json", "w").write('{"status":"Not Found"}')
+	else:
+		f = open('match_details.json', 'w').write(j)
 		
 
 

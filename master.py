@@ -20,7 +20,7 @@ sqlContext = SQLContext(sc)  # Crate SQL context to access dataframe objects
 spark = SparkSession(sc)  # SparkSession creation
 ssc = StreamingContext(sc, 5)  # Start streaming context
 # Set checkpoint directory for all updateStateByKey operations
-ssc.checkpoint("checkpoint_FPL")
+ssc.checkpoint("CheckPoint")
 
 
 # Reading players and teams csv files
@@ -342,7 +342,7 @@ def json_write(match):
 	m = json.loads(match)
 	m = json.dumps(m, indent = 4) 
 	with open('Match.json', 'a') as f:
-		f.write(m)
+		f.write(m+",")
 	return match
 
 def save(rdd):
