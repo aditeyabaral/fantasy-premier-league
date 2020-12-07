@@ -179,11 +179,3 @@ elif r_type==3:
 		f = open("match_details.json", "w").write('{"status":"Not Found"}')
 	else:
 		f = open('match_details.json', 'w').write(j)
-		
-
-
-			
-
-
-
-
