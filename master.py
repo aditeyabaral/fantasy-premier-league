@@ -29,18 +29,6 @@ players_df = sqlContext.read.load(
 teams_df = sqlContext.read.load(
     "data/teams.csv", format="csv", header="true", inferSchema="true")
 
-
-def getSparkSessionInstance(sparkConf):
-	'''
-	Helper function to retrieve SparkSession instance at the worker nodes
-	'''
-	if ('spark' not in globals()):
-		globals()['spark'] = SparkSession\
-			.builder\
-			.config(conf=sparkConf)\
-			.getOrCreate()
-	return globals()['spark']
-
 def checkMatchRecord(record):
 	'''
 	Check if an input record is a match record

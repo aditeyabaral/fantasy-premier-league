@@ -24,7 +24,7 @@ if 'req_type' in inp.keys():
 else:
 	r_type = 3
 
-if r_type==1:
+if r_type==1:                   #Compare 2 teams
 	team_strength = [0, 0]
 	win_chance = [0, 0]
 	chemistry = json.loads(open("sample_ip/chemistry.json").read())
@@ -36,30 +36,45 @@ if r_type==1:
 		teamData = inp[team_keys[t]]
 		playerNames = [teamData[pk] for pk in player_keys]
 		playerIds = []
+		playerRoles = []
 		for name in playerNames:
 			playerIds.append(players_df.filter(players_df.name == name).first().Id)
-		team_sum = 0
-		visited = []
-		for p in playerIds:
-			for p1 in playerIds:
-				if p != p1:
-					if (p1, p) in visited:
-						continue
-					else:
-						team_sum += chemistry[str(p)][str(p1)]
-		team_avg = team_sum/11
-		total_sum = 0
-		for p in playerIds:
-			total_sum += rating[str(p)]*team_avg
-		total_sum /= 11
-		team_strength[t] = total_sum
-	win_chance[0] = (0.5 + team_strength[0] - (sum(team_strength)/2))*100
-	win_chance[1] = 100-win_chance[0]
-	out = {"team1":{"name":inp["team1"]["name"], "winning chance": win_chance[0]}, \
-			 "team2":{"name":inp["team2"]["name"], "winning chance": win_chance[1]}}
+			playerRoles.append(players_df.filter(players_df.name == name).first().role)
+		gk, dfn, mf, f = 0, 0, 0, 0
+		for r in playerRoles:
+			if r=='DF':
+				dfn+=1
+			elif r=='GK':
+				gk+=1
+			elif r=='MD':
+				mf+=1
+			elif r=='FW':
+				f+=1
+		if gk != 1 or dfn < 2 or mf < 2 or f < 1:
+			out = {"status":"Invalid Team"}
+		else:
+			team_sum = 0
+			visited = []
+			for p in playerIds:
+				for p1 in playerIds:
+					if p != p1:
+						if (p1, p) in visited:
+							continue
+						else:
+							team_sum += chemistry[str(p)][str(p1)]
+			team_avg = team_sum/11
+			total_sum = 0
+			for p in playerIds:
+				total_sum += rating[str(p)]*team_avg
+			total_sum /= 11
+			team_strength[t] = total_sum
+			win_chance[0] = (0.5 + team_strength[0] - (sum(team_strength)/2))*100
+			win_chance[1] = 100-win_chance[0]
+			out = {"team1":{"name":inp["team1"]["name"], "winning chance": win_chance[0]}, \
+					"team2":{"name":inp["team2"]["name"], "winning chance": win_chance[1]}}
 	j = json.dumps(out)
-	f = open("predict-result.json", "w").write(j)
-elif r_type==2:
+	f = open("predict_result.json", "w").write(j)
+elif r_type==2:                                     #Player Profile
 	name = inp["name"]
 	print("NAME:", name)
 	r = players_df.filter(players_df.name == name).first()
@@ -67,12 +82,7 @@ elif r_type==2:
 
 	data = {"name": name, "birthArea":r.birthArea, "birthDate":r.birthDate, "foot":r.foot, "role": r.role, "height":r.height,	\
 			"weight": r.weight}
-	playerId = r.Id 
-	#print(data)
-	#print("player id is:", playerId)
-
-	#[Row(name='Paul Pogba', birthArea='France', birthDate='1993-03-15', foot='right', role='MD', height=191, passportArea='Guinea', weight=84, Id=7936)]
-
+	playerId = r.Id
 	tt = None
 	found = False
 	files = [f for f in os.listdir("/home/hduser_/Desktop/fantasy-premier-league/player_profile_data") if f.startswith("part-")]
@@ -94,9 +104,9 @@ elif r_type==2:
 	data["shots on target"] = shots_on_target
 
 	j = json.dumps(data)
-	f = open("player-result.json", "w").write(j)
+	f = open("player_result.json", "w").write(j)
 
-elif r_type==3:
+elif r_type==3:              #Match Info
 	date = inp['date']
 	label = inp['label']
 
